@@ -20,12 +20,12 @@ func main() {
 	log := setupLogger(cfg.Env)
 	log.Info("starting service", slog.String("env", cfg.Env))
 	// init storage
-	storage, err := postgres.New(cfg.StorageConn)
+	strg, err := postgres.New(cfg.StorageConn)
 	if err != nil {
 		log.Error("failed to connect to storage", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	_ = storage
+	_ = strg
 	log.Info("connected to storage and tables created")
 	// init router
 
