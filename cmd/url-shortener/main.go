@@ -1,10 +1,10 @@
 package main
 
 import (
-	"log"
 	"log/slog"
 	"os"
 	"url-shortener/internal/config"
+	"url-shortener/internal/storage/postgres"
 )
 
 const (
@@ -16,12 +16,17 @@ const (
 func main() {
 	// init config
 	cfg := config.MustLoad()
-	log.Println(cfg)
 	// init logger
 	log := setupLogger(cfg.Env)
-	log.Info("log created")
+	log.Info("starting service", slog.String("env", cfg.Env))
 	// init storage
-
+	storage, err := postgres.New(cfg.StorageConn)
+	if err != nil {
+		log.Error("failed to connect to storage", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	_ = storage
+	log.Info("connected to storage and tables created")
 	// init router
 
 	// init server
