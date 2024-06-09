@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 	"url-shortener/internal/storage"
 
@@ -17,9 +18,11 @@ type Storage struct {
 	db *sql.DB
 }
 
-func New(conn string) (*Storage, error) {
+func New(conn string, log slog.Logger) (*Storage, error) {
 	const op = "storage.postgres.New"
-	db, err := OpenDB(conn)
+	log = *log.With(slog.String("op", op))
+	log.Info("trying to connect to db")
+	db, err := OpenDB(conn, log)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -52,10 +55,10 @@ func New(conn string) (*Storage, error) {
 	}, nil
 }
 
-func OpenDB(conn string) (*sql.DB, error) {
+func OpenDB(conn string, log slog.Logger) (*sql.DB, error) {
 	const op = "storage.postgres.OpenDB"
 	count := 0
-
+	log = *log.With(slog.String("op", op))
 	for {
 		count++
 		db, err := sql.Open("pgx", conn)
@@ -72,6 +75,7 @@ func OpenDB(conn string) (*sql.DB, error) {
 		if count > 8 {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
+		log.Info("backing off for 2 seconds")
 		time.Sleep(time.Second * 2)
 	}
 }
@@ -94,7 +98,7 @@ func (s *Storage) SaveURL(urlToSave, alias string) error {
 	return nil
 }
 
-func (s *Storage) GetRUL(alias string) (string, error) {
+func (s *Storage) GetURL(alias string) (string, error) {
 	const op = "storage.postgres.GetURL"
 	query := "SELECT url FROM url WHERE alias = $1"
 	stmt, err := s.db.Prepare(query)
@@ -107,7 +111,7 @@ func (s *Storage) GetRUL(alias string) (string, error) {
 	err = row.Scan(&url)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", fmt.Errorf("%s: %w", op, storage.ErrURLNotExists)
+			return "", fmt.Errorf("%s: %w", op, storage.ErrURLNotFound)
 		}
 		return "", fmt.Errorf("%s: %w", op, err)
 	}

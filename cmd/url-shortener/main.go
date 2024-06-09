@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 	"url-shortener/internal/config"
+	"url-shortener/internal/http-server/handlers/url/delete"
+	"url-shortener/internal/http-server/handlers/url/redirect"
 	"url-shortener/internal/http-server/handlers/url/save"
 	"url-shortener/internal/http-server/middleware/logger"
 	"url-shortener/internal/lib/logger/handlers/slogpretty"
@@ -20,6 +22,12 @@ const (
 	envDev   = "dev"
 )
 
+type Storage struct {
+	urlSaver   save.URLSaver
+	urlGetter  redirect.URLGetter
+	urlDeleter delete.URLDeleter
+}
+
 func main() {
 	// init config
 	cfg := config.MustLoad()
@@ -27,14 +35,20 @@ func main() {
 	log := setupLogger(cfg.Env)
 	log.Info("starting service", slog.String("env", cfg.Env))
 	// init storage
-	strg, err := postgres.New(cfg.StorageConn)
+	strg, err := postgres.New(cfg.StorageConn, *log)
 	if err != nil {
 		log.Error("failed to connect to storage", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 	log.Info("connected to storage and tables created")
 	// init router
-	router := setupRouter(log, strg)
+	storage := Storage{
+		urlSaver:   strg,
+		urlGetter:  strg,
+		urlDeleter: strg,
+	}
+	router := setupRouter(log, storage, *cfg)
+
 	srv := &http.Server{
 		Addr:         cfg.HttpServer.Address,
 		Handler:      router,
@@ -63,14 +77,21 @@ func setupLogger(env string) *slog.Logger {
 	return log
 }
 
-func setupRouter(log *slog.Logger, saver save.URLSaver) http.Handler {
+func setupRouter(log *slog.Logger, saver Storage, cfg config.Config) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Logger)
 	router.Use(logger.New(log))
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.URLFormat)
-	router.Post("/url", save.New(log, saver))
+	router.Get("/{alias}", redirect.New(log, saver.urlGetter))
+	router.Route("/url", func(r chi.Router) {
+		r.Use(middleware.BasicAuth("url-shortener", map[string]string{
+			cfg.HttpServer.Email: cfg.HttpServer.Password,
+		}))
+		r.Delete("/", delete.New(log, saver.urlDeleter))
+		r.Post("/", save.New(log, saver.urlSaver))
+	})
 	return router
 }
 
