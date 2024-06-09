@@ -13,6 +13,7 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
+//go:generate go run github.com/vektra/mockery/v2@v2 --name=URLSaver
 type URLSaver interface {
 	SaveURL(urlToSave, alias string) error
 }
