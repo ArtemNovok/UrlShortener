@@ -1,0 +1,15 @@
+version: '3'
+services:
+  shortener:
+    build:
+      context: ./
+      dockerfile: dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+  postgres:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: mysecretpassword

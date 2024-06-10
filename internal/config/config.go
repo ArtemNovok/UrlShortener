@@ -32,7 +32,10 @@ func MustLoad() *Config {
 	if res == "" {
 		res = os.Getenv("CONFIG_PATH")
 	}
-
+	if res == "" {
+		cfg := LoadConfigUsingEnvFile()
+		return &cfg
+	}
 	configPath := res
 	if configPath == "" {
 		log.Fatal("empty config path")
@@ -46,4 +49,18 @@ func MustLoad() *Config {
 		log.Fatal("failed to read config file: %s", configPath)
 	}
 	return &cfg
+}
+
+func LoadConfigUsingEnvFile() Config {
+	return Config{
+		Env:         os.Getenv("ENV"),
+		StorageConn: os.Getenv("STORAGE_CONN"),
+		HttpServer: HttpServer{
+			Address:     os.Getenv("ADDRESS"),
+			TimeOut:     time.Second * 4,
+			IdleTimeOut: time.Second * 60,
+			Email:       os.Getenv("EMAIL"),
+			Password:    os.Getenv("PASSWORD"),
+		},
+	}
 }
